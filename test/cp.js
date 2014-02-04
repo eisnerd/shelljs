@@ -136,6 +136,12 @@ shell.cp('-r', 'resources/issue44/*', 'tmp/dir2/dir3');
 assert.ok(shell.error());
 assert.equal(fs.existsSync('tmp/dir2'), false);
 
+//recursive, dereference a relative symlink that would otherwise become a dangling link
+shell.rm('-rf', 'tmp/*');
+shell.cp('-rL', 'resources/cp-dereference/a', 'tmp');
+assert.equal(shell.error(), null);
+assert.equal(shell.cat('resources/cp-dereference/fileA'), shell.cat('tmp/a/fileA'));
+
 //preserve mode bits
 shell.rm('-rf', 'tmp/*');
 var execBit = parseInt('001', 8);
