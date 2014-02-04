@@ -6,7 +6,14 @@ var os = require('os');
 // Buffered file copy, synchronous
 // (Using readFileSync() + writeFileSync() could easily cause a memory overflow
 //  with large files)
-function copyFileSync(srcFile, destFile) {
+function copyFileSync(srcFile, destFile, dereference) {
+  if (dereference) {
+    var srcFileStat = fs.lstatSync(srcFile);
+
+    if (srcFileStat.isSymbolicLink())
+      srcFile = fs.realpathSync(srcFile);
+  }
+
   if (!fs.existsSync(srcFile))
     common.error('copyFileSync: no such file or directory: ' + srcFile);
 
@@ -71,7 +78,7 @@ function cpdirSyncRecursive(sourceDir, destDir, opts) {
     if (srcFileStat.isDirectory()) {
       /* recursion this thing right on back. */
       cpdirSyncRecursive(srcFile, destFile, opts);
-    } else if (srcFileStat.isSymbolicLink()) {
+    } else if (!opts.dereference && srcFileStat.isSymbolicLink()) {
       var symlinkFull = fs.readlinkSync(srcFile);
       fs.symlinkSync(symlinkFull, destFile, os.platform() === "win32" ? "junction" : null);
     } else {
@@ -79,7 +86,7 @@ function cpdirSyncRecursive(sourceDir, destDir, opts) {
       if (fs.existsSync(destFile) && !opts.force) {
         common.log('skipping existing file: ' + files[i]);
       } else {
-        copyFileSync(srcFile, destFile);
+        copyFileSync(srcFile, destFile, opts.dereference);
       }
     }
 
@@ -93,6 +100,7 @@ function cpdirSyncRecursive(sourceDir, destDir, opts) {
 //@ Available options:
 //@
 //@ + `-f`: force
+//@ + `-L`: dereference; always follow symbolic links in source
 //@ + `-r, -R`: recursive
 //@
 //@ Examples:
@@ -107,6 +115,7 @@ function cpdirSyncRecursive(sourceDir, destDir, opts) {
 function _cp(options, sources, dest) {
   options = common.parseOptions(options, {
     'f': 'force',
+    'L': 'dereference',
     'R': 'recursive',
     'r': 'recursive'
   });
@@ -177,7 +186,7 @@ function _cp(options, sources, dest) {
           if (e.code !== 'EEXIST') throw e;
         }
 
-        cpdirSyncRecursive(src, newDest, {force: options.force});
+        cpdirSyncRecursive(src, newDest, {force: options.force, dereference: options.dereference});
       }
       return; // done with dir
     }
@@ -195,7 +204,7 @@ function _cp(options, sources, dest) {
       return; // skip file
     }
 
-    copyFileSync(src, thisDest);
+    copyFileSync(src, thisDest, options.dereference);
   }); // forEach(src)
 }
 module.exports = _cp;
